@@ -46,28 +46,39 @@ class Item {
 	}
 }
 
+var defaultConfig = {
+	poolName: "Pool",
+	itemType: "Pool-Object",
+	minItemsTotal: 1,
+	minItemsReady: 1,
+	maxItemsTotal: 10,
+	maxItemsReady: 10,
+	maxItemAge: (24 * 60 * 60),
+	refreshPeriod: 5,
+	itemFactory: function () {
+		return value
+	},
+	itemPreparation: function (value) {
+		return value
+	},
+	itemDeletion: function (item) {},
+	logger: function (str) {
+		console.log(str)
+	}
+}
+defaultConfig.itemFactory = undefined;
+
 class Pool {
 
-	constructor(config) {
+	constructor(config = defaultConfig) {
 		this.id = uuidv4()
-		this.items = { "" : new Item() }
+		this.items = {}
 		this.running = false
 		this.workerId = ""
-
-		this.poolName = config.poolName || "Pool"
-		this.itemType = config.itemType || "Pool-Object"
-		this.minItemsTotal = config.minItemsTotal || 1
-		this.minItemsReady = config.minItemsReady || 1
-		this.maxItemsTotal = config.maxItemsTotal || 10
-		this.maxItemsReady = config.maxItemsReady || 10
-		this.maxItemAge = config.maxItemAge || (24 * 60 * 60)
-		this.refreshPeriod = config.refreshPeriod || 5
-
-		this.itemFactory = config.itemFactory
+		for (const key in defaultConfig)
+			this[key] = config[key] !== undefined ? config[key] : defaultConfig[key]
 		if (!this.itemFactory)
 			throw ReferenceError(this.poolName + ".itemFactory must be set");
-
-		this.itemPreparation = config.itemPreparation || (function (value) { return value })
 	}
 
 	start() {
@@ -80,9 +91,14 @@ class Pool {
 		clearInterval(this.workerId)
 	}
 
-	async managePool() {
+	managePool() {
+		// TODO: Wrap this code in promise
+		
 		var now = new Date().getTime();
-		var items = Object.keys(this.items).map(k => this.items[k])
+		var items = []
+		for (const i in this.items)
+			items.push(this.items[i])
+		
 		//var lockedItems = items.filter(i => i.locked)
 		var nonLockedItems = items.filter(i => !i.locked)
 		var readyItems = nonLockedItems.filter(i => i.state === states.ready)
@@ -109,27 +125,44 @@ class Pool {
 			loop(readyItems.slice(0, itemsToDelete.length), this.deleteItem)
 		if (oldItems.length > 0)
 			loop(oldItems, this.deleteItem)
+
+		checkForChangedItems()
 	}
 
-	async createItem() {
+	checkForChangedItems(){
+		// TODO: implement callback
+	}
+
+	createItem() {
+		// TODO: Wrap this code in promise
 		var item = new Item(uuidv4(), this.itemType, states.creating, null, null)
 		this.items[item.id] = item
+		this.logger("Creating "+item.type+" item with id=" + item.id)
 		var value = await this.itemFactory()
+		this.logger("Done Creating "+item.type+" item with id=" + item.id)
 		item.setValue(value)
 		item.setState(states.preparing)
+		this.logger("Preparing "+item.type+" item with id=" + item.id)
 		value = await this.itemPreparation(value)
+		this.logger("Done Preparing "+item.type+" item with id=" + item.id)
 		item.setValue(value)
 		item.setState(states.ready)
 	}
 
-	async deleteItem(item) {
-		// TODO: Delete the item
+	deleteItem(item) {
+		// TODO: Wrap this code in promise
+		var item = this.items[item.id]
+		item.setState(states.deleting)
+		this.logger("Deleting "+item.type+" item with id=" + item.id)
+		await this.itemDeletion(item.value)
+		this.logger("Done Deleting "+item.type+" item with id=" + item.id)
+		delete this.items[item.id]
 	}
 
 }
 
 function loop(countOrItems, action) {
-	if (typeof(countOrItems) === "number")
+	if (typeof (countOrItems) === "number")
 		for (var i = 0; i < countOrItems; i++) action(i);
 	else if (Array.isArray(countOrItems))
 		for (var i = 0; i < countOrItems.length; i++) action(countOrItems[i]);
