@@ -2,5 +2,6 @@
 # This .gitignore file was automatically created by Microsoft(R) Visual Studio.
 ################################################################################
 
-/node_modules
-/.vs
+node_modules
+.vs
+.vscode
