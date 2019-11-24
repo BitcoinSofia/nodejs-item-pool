@@ -2,9 +2,9 @@
   "name": "nodejs-item-pool",
   "version": "0.1.0",
   "description": "A resourse pool manager.",
-  "main": "pool-manager.js",
+  "main": "pool.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "repository": {
     "type": "git",
@@ -16,7 +16,8 @@
     "url": "https://github.com/BitcoinSofia/nodejs-item-pool/issues"
   },
   "homepage": "https://github.com/BitcoinSofia/nodejs-item-pool#readme",
-  "dependencies": {
-    "uuid": "^3.3.3"
+  "dependencies": {},
+  "devDependencies": {
+    "jest": "^24.9.0"
   }
 }

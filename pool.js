@@ -1,9 +1,8 @@
-const uuidv4 = require('uuid/v4');
-
 const states = {
 	creating: "creating",
 	preparing: "preparing",
 	ready: "ready",
+	inUse: "inUse",
 	updating: "updating",
 	deleting: "deleting",
 	invalid: "invalid"
@@ -53,7 +52,7 @@ var defaultConfig = {
 	minItemsReady: 1,
 	maxItemsTotal: 10,
 	maxItemsReady: 10,
-	maxItemAge: (24 * 60 * 60),
+	maxItemAge: (30 * 24 * 60 * 60 * 1000), // 30 days
 	refreshPeriod: 5000,
 	creationWaitPeriod: 100,
 	deletionWaitPeriod: 100,
@@ -63,7 +62,7 @@ var defaultConfig = {
 	logger: function (str) { console.log(str) },
 	updateChangedItemStates: function (items) { },
 }
-defaultConfig.itemFactory = undefined;
+defaultConfig.itemFactory = undefined
 
 class Pool {
 
@@ -72,15 +71,18 @@ class Pool {
 		this.itemsToDelete = [] // list of IDs
 		this.itemsToCreate = 0 // count
 		this.running = false
-		this.workerId = ""
+		this.manageWorkerId = "<not started>"
+		this.createWorkerId = "<not started>"
+		this.deleteWorkerId = "<not started>"
 		for (const key in defaultConfig)
 			this[key] = config[key] !== undefined ? config[key] : defaultConfig[key]
 		if (!this.itemFactory)
-			throw ReferenceError(this.poolName + ".itemFactory must be set");
+			throw ReferenceError(this.poolName + ".itemFactory must be set")
 	}
 
 	start() {
 		this.running = true
+		_managePool(this)
 		this.manageWorkerId = setInterval(() => {
 			_managePool(this)
 		}, this.refreshPeriod)
@@ -98,13 +100,38 @@ class Pool {
 		clearInterval(this.createWorkerId)
 		clearInterval(this.deleteWorkerId)
 	}
+
+	useItem() {
+		for (const i in this.items) {
+			var item = this.items[i]
+			if (item.state !== states.ready)
+				continue
+			item.setState(states.inUse)
+			return item
+		}
+		this.createItem() // create item if no items present
+		return null;
+	}
+
+	getItems() {
+		var items = []
+		for (const i in this.items)
+			items.push(this.items[i])
+		return items
+	}
+
+	createItem(){
+		this.itemsToCreate++
+	}
+
+	deleteItem(item){
+		this.itemsToDelete.push(item)
+	}
 }
 
 function _managePool(pool) {
-	var now = new Date().getTime();
-	var items = []
-	for (const i in pool.items)
-		items.push(pool.items[i])
+	var now = new Date().getTime()
+	var items = pool.getItems()
 
 	//var lockedItems = items.filter(i => i.locked)
 	var nonLockedItems = items.filter(i => !i.locked)
@@ -114,11 +141,10 @@ function _managePool(pool) {
 	var creatingItems = nonLockedItems.filter(i => i.state === states.creating)
 	//var deletingItems = poolItems.filter(i => i.state === states.deleting)
 	//var invalidItems = poolItems.filter(i => i.state === states.invalid)
-	var oldItems = nonLockedItems.filter(i => now - i.created.getTime > pool.maxItemAge)
+	var oldItems = nonLockedItems.filter(i => now - i.created.getTime() > pool.maxItemAge)
 	var almostReadyItemsCount = readyItems.length
 		+ creatingItems.length
 		+ preparingItems.length
-		+ updatingItems.length
 
 	var itemsToCreateCount = pool.minItemsTotal - nonLockedItems.length
 	itemsToCreateCount = Math.max(itemsToCreateCount, pool.minItemsReady - almostReadyItemsCount)
@@ -148,7 +174,7 @@ function _createQueuedItem(pool) {
 	var id = new Date().getTime() + Math.random().toString().replace(".", "")
 	var item = new Item(id, pool.itemType, states.creating, null, null)
 	pool.items[item.id] = item
-	pool.itemsToCreate--;
+	pool.itemsToCreate--
 	pool.logger("Creating " + item.type + " item with id=" + item.id)
 	var value = pool.itemFactory()
 	pool.logger("Done Creating " + item.type + " item with id=" + item.id)
@@ -175,4 +201,5 @@ function _deleteQueuedItem(pool) {
 	delete pool.items[item.id]
 }
 
+Pool.states = states
 module.exports = Pool
