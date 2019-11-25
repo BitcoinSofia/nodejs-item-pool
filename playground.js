@@ -1,9 +1,9 @@
 var Pool = require("./pool.js")
 
 var pool1 = new Pool({
-    minItemsReady: 3,
-    maxItemsTotal: 2,
-    maxItemAge: 10000,
+    minItemsReady: 1,
+    maxItemsTotal: 20,
+    maxItemAge: 100000,
     refreshPeriod: 1000,
     itemFactory: () => Math.random(),
     itemDeletion: (i) => { },
@@ -12,4 +12,4 @@ var pool1 = new Pool({
 })
 
 console.log(pool1)
-pool1.start()
+pool1.serve()

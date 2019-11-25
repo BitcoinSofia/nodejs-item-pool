@@ -94,6 +94,31 @@ class Pool {
 		}, this.deletionWaitPeriod)
 	}
 
+	serve(port = 3000) {
+		const express = require('express')
+		const app = express()
+
+		var logger = this.logger;
+		function actOnServe(req, res, action, op, state) {
+			try {
+				logger(req.method + " " + req.url + " from " + req.ip + "")
+				var result = action();
+				res.status(200).json({ op: op, state: state, result: result })
+			} catch (error) {
+				res.status(500).json({ op: op, state: "failed", message: error.message })
+			}
+		}
+
+		app.post('/start', (req, res) => actOnServe(req, res, this.start.bind(this), "start", "done"))
+		app.post('/stop', (req, res) => actOnServe(req, res, this.stop.bind(this), "stop", "done"))
+		app.post('/useItem', (req, res) => actOnServe(req, res, this.useItem.bind(this), "useItem", "done"))
+		app.get('/getItems', (req, res) => actOnServe(req, res, this.getItems.bind(this), "getItems", "done"))
+		app.post('/createItem', (req, res) => actOnServe(req, res, this.createItem.bind(this), "createItem", "started"))
+		app.post('/deleteItem', (req, res) => actOnServe(req, res, () => this.deleteItem.bind(this)({id: req.params.id}), "deleteItem", "started"))
+
+		app.listen(port, () => console.log(`Pool Service listening on port ${port}!`))
+	}
+
 	stop() {
 		this.running = false
 		clearInterval(this.manageWorkerId)
@@ -141,7 +166,7 @@ function _managePool(pool) {
 	var creatingItems = nonLockedItems.filter(i => i.state === states.creating)
 	//var deletingItems = poolItems.filter(i => i.state === states.deleting)
 	//var invalidItems = poolItems.filter(i => i.state === states.invalid)
-	var oldItems = nonLockedItems.filter(i => now - i.created.getTime() > pool.maxItemAge)
+	var oldItems = readyItems.filter(i => now - i.created.getTime() > pool.maxItemAge)
 	var almostReadyItemsCount = readyItems.length
 		+ creatingItems.length
 		+ preparingItems.length
