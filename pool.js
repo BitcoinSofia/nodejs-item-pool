@@ -193,7 +193,7 @@ function _managePool(pool) {
 }
 
 
-function _createQueuedItem(pool) {
+async function _createQueuedItem(pool) {
 	if (pool.itemsToCreate <= 0)
 		return
 	var id = new Date().getTime() + Math.random().toString().replace(".", "")
@@ -202,11 +202,15 @@ function _createQueuedItem(pool) {
 	pool.itemsToCreate--
 	pool.logger("Creating " + item.type + " item with id=" + item.id)
 	var value = pool.itemFactory()
+    if(value instanceof Promise)
+        value = await value
 	pool.logger("Done Creating " + item.type + " item with id=" + item.id)
 	item.setValue(value)
 	item.setState(states.preparing)
 	pool.logger("Preparing " + item.type + " item with id=" + item.id)
-	value = pool.itemPreparation(value)
+    value = pool.itemPreparation(value)
+    if(value instanceof Promise)
+        value = await value
 	pool.logger("Done Preparing " + item.type + " item with id=" + item.id)
 	item.setValue(value)
 	item.setState(states.ready)
